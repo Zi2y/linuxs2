@@ -191,6 +191,57 @@ static void handle___pkvm_vcpu_init_traps(struct kvm_cpu_context *host_ctxt)
 	__pkvm_vcpu_init_traps(kern_hyp_va(vcpu));
 }
 
+static void handle___test_function(struct kvm_cpu_context *host_ctxt)
+{
+	cpu_reg(host_ctxt, 1) = 0x976;
+}
+
+static void handle___my_unmap(struct kvm_cpu_context *host_ctxt)
+{
+	
+	DECLARE_REG(u64, addr, host_ctxt, 1);
+    struct kvm_pgtable *pgt = &host_kvm.pgt;
+	
+    kvm_pte_t pte;
+    u32 level;
+    int leaf_ret;
+    int unmap_ret;
+    
+    leaf_ret = kvm_pgtable_get_leaf(pgt, addr, &pte, &level);
+    cpu_reg(host_ctxt, 2) = leaf_ret;  
+    cpu_reg(host_ctxt, 3) = pte;  
+    cpu_reg(host_ctxt, 4) = level;
+    
+    unmap_ret = kvm_pgtable_stage2_unmap(pgt, addr, 8);
+	
+	dsb(sy);
+	__tlbi(alle1);
+	dsb(sy);
+    isb();
+
+	my_hvc_called = 1;
+	my_ipa = addr; 
+
+    if (unmap_ret) {
+        cpu_reg(host_ctxt, 1) = 0x975;
+        return;
+    }
+
+    leaf_ret = kvm_pgtable_get_leaf(pgt, addr, &pte, &level);
+    cpu_reg(host_ctxt, 5) = leaf_ret;  
+    cpu_reg(host_ctxt, 6) = pte;  
+    cpu_reg(host_ctxt, 7) = level; 
+	cpu_reg(host_ctxt, 8) = my_ipa;
+	cpu_reg(host_ctxt, 9) = my_hvc_called;
+    cpu_reg(host_ctxt, 1) = is_protected_kvm_enabled();
+}
+
+static void handle___my_print(struct kvm_cpu_context *host_ctxt)
+{
+	cpu_reg(host_ctxt, 1) = my_ipa;
+	cpu_reg(host_ctxt, 2) = my_hvc_called;
+}
+
 typedef void (*hcall_t)(struct kvm_cpu_context *);
 
 #define HANDLE_FUNC(x)	[__KVM_HOST_SMCCC_FUNC_##x] = (hcall_t)handle_##x
@@ -220,6 +271,10 @@ static const hcall_t host_hcall[] = {
 	HANDLE_FUNC(__vgic_v3_save_aprs),
 	HANDLE_FUNC(__vgic_v3_restore_aprs),
 	HANDLE_FUNC(__pkvm_vcpu_init_traps),
+
+	HANDLE_FUNC(__test_function),
+	HANDLE_FUNC(__my_unmap),
+	HANDLE_FUNC(__my_print),
 };
 
 static void handle_host_hcall(struct kvm_cpu_context *host_ctxt)

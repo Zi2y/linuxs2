@@ -19,6 +19,9 @@
 #include <nvhe/mem_protect.h>
 #include <nvhe/mm.h>
 
+#include <nvhe/trap_handler.h>
+#include <hyp/adjust_pc.h>
+
 #define KVM_HOST_S2_FLAGS (KVM_PGTABLE_S2_NOFWB | KVM_PGTABLE_S2_IDMAP)
 
 extern unsigned long hyp_nr_cpus;
@@ -27,6 +30,9 @@ struct host_kvm host_kvm;
 static struct hyp_pool host_s2_pool;
 
 const u8 pkvm_hyp_id = 1;
+
+u64 my_ipa = 0;
+u64 my_hvc_called = 0;
 
 static void host_lock_component(void)
 {
@@ -376,6 +382,22 @@ void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt)
 	BUG_ON(!__get_fault_info(esr, &fault));
 
 	addr = (fault.hpfar_el2 & HPFAR_MASK) << 8;
+
+	 /* Our magic address to trigger the experiment. Must be page-aligned. */
+    if (addr == my_ipa && my_hvc_called == 1) {
+        /* Set register x1 for the host to see */
+        cpu_reg(host_ctxt, 1) = 0xdead6666;
+		cpu_reg(host_ctxt, 2) = esr;
+        /* Set return value in x0 to 0 (success) */
+        cpu_reg(host_ctxt, 0) = 0;
+
+        /* Skip the faulting instruction to avoid an infinite loop */
+        kvm_skip_host_instr();
+        return;
+		
+    }
+	/* end of experiment code */
+
 	ret = host_stage2_idmap(addr);
 	BUG_ON(ret && ret != -EAGAIN);
 }

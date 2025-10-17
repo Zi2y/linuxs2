@@ -53,6 +53,9 @@ extern struct host_kvm host_kvm;
 
 extern const u8 pkvm_hyp_id;
 
+extern u64 my_ipa;
+extern u64 my_hvc_called;
+
 int __pkvm_prot_finalize(void);
 int __pkvm_host_share_hyp(u64 pfn);
 int __pkvm_host_unshare_hyp(u64 pfn);
