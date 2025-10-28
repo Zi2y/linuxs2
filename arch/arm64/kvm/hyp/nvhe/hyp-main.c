@@ -212,12 +212,12 @@ static void handle___my_unmap(struct kvm_cpu_context *host_ctxt)
     cpu_reg(host_ctxt, 3) = pte;  
     cpu_reg(host_ctxt, 4) = level;
     
-    unmap_ret = kvm_pgtable_stage2_unmap(pgt, addr, 8);
+    unmap_ret = kvm_pgtable_stage2_unmap(pgt, addr, 128);
 	
-	dsb(sy);
-	__tlbi(alle1);
-	dsb(sy);
-    isb();
+	// dsb(sy);
+	// __tlbi(alle1);
+	// dsb(sy);
+    // isb();
 
 	my_hvc_called = 1;
 	my_ipa = addr; 

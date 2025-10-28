@@ -383,22 +383,16 @@ void handle_host_mem_abort(struct kvm_cpu_context *host_ctxt)
 
 	addr = (fault.hpfar_el2 & HPFAR_MASK) << 8;
 
-	 /* Our magic address to trigger the experiment. Must be page-aligned. */
     if (addr == my_ipa && my_hvc_called == 1) {
-        /* Set register x1 for the host to see */
         cpu_reg(host_ctxt, 1) = 0xdead6666;
 		cpu_reg(host_ctxt, 2) = esr;
-        /* Set return value in x0 to 0 (success) */
-        cpu_reg(host_ctxt, 0) = 0;
-
-        /* Skip the faulting instruction to avoid an infinite loop */
+        cpu_reg(host_ctxt, 0) = 0;//success
         kvm_skip_host_instr();
         return;
-		
-    }
-	/* end of experiment code */
+    }else{
+		ret = host_stage2_idmap(addr);
+	}
 
-	ret = host_stage2_idmap(addr);
 	BUG_ON(ret && ret != -EAGAIN);
 }
 
